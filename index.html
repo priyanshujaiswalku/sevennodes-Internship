@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        .form-container {
+            margin-bottom: 20px;
+        }
+
+        input[type="file"],
+        input[type="text"],
+        button {
+            padding: 10px;
+            margin: 10px 0;
+            width: 300px;
+        }
+
+        textarea {
+            width: 300px;
+            height: 100px;
+            padding: 10px;
+        }
+
+        .response {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            width: 300px;
+        }
+
+        /* Toggle switch styling */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-right: 10px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        .toggle-label {
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>PDF Chatbot</h1>
+
+    <!-- PDF Upload Form -->
+    <div class="form-container">
+        <label for="pdf-file">Upload PDF:</label>
+        <input type="file" id="pdf-file" name="file" accept="application/pdf">
+        <button onclick="uploadPdf()">Upload PDF</button>
+    </div>
+
+    <!-- Question Form -->
+    <div class="form-container">
+        <label for="question">Ask a question:</label>
+        <input type="text" id="question" placeholder="Enter your question">
+
+        <!-- Summarization Toggle -->
+        <div class="toggle-container">
+            <label class="toggle-switch">
+                <input type="checkbox" id="enable-summarization">
+                <span class="slider"></span>
+            </label>
+            <span class="toggle-label">Enable summarization (slower but more comprehensive)</span>
+        </div>
+
+        <button onclick="askQuestion()">Ask</button>
+    </div>
+
+    <!-- Response -->
+    <div class="response" id="response"></div>
+
+    <script>
+        let session_id = null; // Store session ID globally
+
+        // Function to handle PDF upload
+        async function uploadPdf() {
+            const fileInput = document.getElementById('pdf-file');
+            const file = fileInput.files[0];
+            // const maxSize = 1 * 1024 * 1024; // 1MB in bytes
+            const responseDiv = document.getElementById('response');
+
+            if (!file) {
+                responseDiv.textContent = "Please select a file to upload.";
+                return;
+            }
+
+            // if (file.size > maxSize) {
+            //     responseDiv.textContent = "File too large. Maximum size is 1MB.";
+            //     return;
+            // }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            responseDiv.textContent = "Uploading PDF...";
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Check if the response is not OK (status code >= 400)
+                if (!response.ok) {
+                    const errorData = await response.json(); // Parse the error message from the backend
+                    responseDiv.textContent = "Error: " + errorData.error; // Display the error message
+                    return;
+                }
+
+                const result = await response.json();
+                if (response.ok) {
+                    session_id = result.session_id; // Store session ID
+                    responseDiv.textContent = "PDF uploaded and processed! You can now ask questions.";
+                } else {
+                    responseDiv.textContent = "Error: " + result.error;
+                }
+            } catch (error) {
+                responseDiv.textContent = "Error uploading PDF: " + error.message;
+            }
+        }
+
+        // Function to ask a question
+        async function askQuestion() {
+            const question = document.getElementById('question').value;
+            const enableSummarization = document.getElementById('enable-summarization').checked;
+            const responseDiv = document.getElementById('response');
+
+            if (!question) {
+                responseDiv.textContent = "Please enter a question.";
+                return;
+            }
+
+            if (!session_id) {
+                responseDiv.textContent = "Please upload a PDF first.";
+                return;
+            }
+
+            responseDiv.textContent = "Asking question...";
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question,
+                        session_id,
+                        enable_summarization: enableSummarization
+                    })
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    responseDiv.textContent = "Answer: " + result.answer;
+                } else {
+                    responseDiv.textContent = "Error: " + result.error;
+                }
+            } catch (error) {
+                responseDiv.textContent = "Error asking question: " + error.message;
+            }
+        }
+    </script>
+
+</body>
+
+</html>
